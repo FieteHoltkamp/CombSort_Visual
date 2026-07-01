@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CombSort Visualisierung</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1d;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-bottom: 15px;
+            color: #00e5ff;
+            font-size: 2.5rem;
+        }
+
+        #control-panel {
+            margin-bottom: 25px;
+            background-color: #2e2e33;
+            padding: 20px 30px;
+            border-radius: 12px;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+            display: flex;
+            gap: 25px;
+            align-items: center;
+            width: 100%;
+            max-width: 1200px;
+            justify-content: center;
+        }
+
+        label {
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        input[type="range"] {
+            cursor: pointer;
+            width: 250px;
+        }
+
+        #speed-val {
+            display: inline-block;
+            width: 40px;
+            text-align: right;
+            font-weight: bold;
+        }
+
+        button {
+            background-color: #00e5ff;
+            border: none;
+            color: #1a1a1d;
+            padding: 12px 24px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        button:hover {
+            background-color: #00b8cc;
+        }
+
+        button:disabled {
+            background-color: #555;
+            color: #aaa;
+            cursor: not-allowed;
+        }
+
+        #pause-btn {
+            background-color: #ffaa00; /* Orange für Pause */
+            color: #1a1a1d;
+        }
+        #pause-btn:hover {
+            background-color: #cc8800;
+        }
+
+        #container {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            width: 100%;
+            max-width: 1250px;
+            height: 550px; 
+            background-color: #2e2e33;
+            padding: 30px 20px 20px 20px;
+            border-radius: 12px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.6);
+            gap: 5px; 
+            overflow: hidden;
+        }
+
+        .bar-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            height: 100%;
+        }
+
+        .bar-label {
+            font-size: 0.8rem;
+            margin-bottom: 5px;
+            color: #bbb;
+            font-weight: bold;
+        }
+
+        .bar {
+            width: 100%;
+            background-color: #555e69; 
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+        }
+
+        .bar-wrapper.comparing .bar {
+            background-color: #ff4141 !important;
+        }
+        .bar-wrapper.comparing .bar-label {
+            color: #ff4141;
+        }
+
+        .bar-wrapper.sorted .bar {
+            background-color: #2ecc71 !important;
+        }
+        .bar-wrapper.sorted .bar-label {
+            color: #2ecc71;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>CombSort Visualisierung</h1>
+
+    <div id="control-panel">
+        <button id="start-btn" onclick="startSort()">Sortieren starten</button>
+        <button id="pause-btn" onclick="togglePause()" disabled>Pause</button>
+        <button id="reset-btn" onclick="resetArray()">Neu generieren</button>
+        <div>
+            <label for="speed">Verzögerung: </label>
+            <input type="range" id="speed" min="1" max="500" value="50">
+            <span id="speed-val">50</span> ms
+        </div>
+    </div>
+
+    <div id="container"></div>
+
+    <script>
+        const container = document.getElementById('container');
+        const speedInput = document.getElementById('speed');
+        const speedVal = document.getElementById('speed-val');
+        const startBtn = document.getElementById('start-btn');
+        const pauseBtn = document.getElementById('pause-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        
+        const ARRAY_SIZE = 50;
+        let array = [];
+        let isSorting = false;
+        let isPaused = false;
+
+        speedInput.addEventListener('input', () => {
+            speedVal.textContent = speedInput.value;
+        });
+
+        // Event-Listener für die Leertaste (Space)
+        window.addEventListener('keydown', (event) => {
+            if (event.code === 'Space') {
+                event.preventDefault(); // Verhindert das Scrollen der Seite bei Leertaste
+                togglePause();
+            }
+        });
+
+        // Steuert den Pausenzustand
+        function togglePause() {
+            if (!isSorting) return; // Pause nur erlauben, wenn Sortierung läuft
+            
+            isPaused = !isPaused;
+            if (isPaused) {
+                pauseBtn.textContent = 'Weiter';
+                pauseBtn.style.backgroundColor = '#2ecc71'; // Grün für "Weiter"
+            } else {
+                pauseBtn.textContent = 'Pause';
+                pauseBtn.style.backgroundColor = '#ffaa00'; // Zurück zu Orange
+            }
+        }
+
+        // Modifizierte Sleep-Funktion, die im Pausenmodus "wartet"
+        const checkPauseAndSleep = () => {
+            return new Promise(resolve => {
+                const interval = setInterval(() => {
+                    if (!isPaused) {
+                        clearInterval(interval);
+                        setTimeout(resolve, parseInt(speedInput.value));
+                    }
+                }, 20); // Prüft alle 20ms, ob die Pause aufgehoben wurde
+            });
+        };
+
+        function resetArray() {
+            if (isSorting) return;
+            array = [];
+            container.innerHTML = '';
+            isPaused = false;
+            pauseBtn.textContent = 'Pause';
+            pauseBtn.style.backgroundColor = '#ffaa00';
+            pauseBtn.disabled = true;
+            
+            for (let i = 0; i < ARRAY_SIZE; i++) {
+                const val = Math.floor(Math.random() * 91) + 10;
+                array.push(val);
+                
+                const wrapper = document.createElement('div');
+                wrapper.classList.add('bar-wrapper');
+                wrapper.id = `bar-wrapper-${i}`;
+
+                const label = document.createElement('span');
+                label.classList.add('bar-label');
+                label.textContent = val;
+                label.id = `bar-label-${i}`;
+
+                const bar = document.createElement('div');
+                bar.classList.add('bar');
+                bar.style.height = `${val * 4.5}px`; 
+                bar.id = `bar-${i}`;
+
+                wrapper.appendChild(label);
+                wrapper.appendChild(bar);
+                container.appendChild(wrapper);
+            }
+            startBtn.disabled = false;
+        }
+
+        function updateVisuals(index, value) {
+            const bar = document.getElementById(`bar-${index}`);
+            const label = document.getElementById(`bar-label-${index}`);
+            if (bar && label) {
+                bar.style.height = `${value * 4.5}px`;
+                label.textContent = value;
+            }
+        }
+
+        async function combSort() {
+            let n = array.length;
+            let gap = n;
+            const shrink = 1.3;
+            let sorted = false;
+
+            while (!sorted) {
+                gap = Math.floor(gap / shrink);
+                if (gap <= 1) {
+                    gap = 1;
+                    sorted = true; 
+                }
+
+                let i = 0;
+                while (i + gap < n) {
+                    const wrapperI = document.getElementById(`bar-wrapper-${i}`);
+                    const wrapperGap = document.getElementById(`bar-wrapper-${i + gap}`);
+                    
+                    wrapperI.classList.add('comparing');
+                    wrapperGap.classList.add('comparing');
+
+                    // Nutzt jetzt die Pausen-Check-Funktion
+                    await checkPauseAndSleep();
+
+                    if (array[i] > array[i + gap]) {
+                        let temp = array[i];
+                        array[i] = array[i + gap];
+                        array[i + gap] = temp;
+
+                        updateVisuals(i, array[i]);
+                        updateVisuals(i + gap, array[i + gap]);
+
+                        if (gap === 1) {
+                            sorted = false; 
+                        }
+                    }
+
+                    wrapperI.classList.remove('comparing');
+                    wrapperGap.classList.remove('comparing');
+
+                    i++;
+                }
+            }
+
+            // Wenn fertig: Alles grün färben
+            const wrappers = document.getElementsByClassName('bar-wrapper');
+            for (let k = 0; k < wrappers.length; k++) {
+                wrappers[k].classList.add('sorted');
+                await new Promise(r => setTimeout(r, 15));
+            }
+        }
+
+        async function startSort() {
+            if (isSorting) return;
+            isSorting = true;
+            startBtn.disabled = true;
+            resetBtn.disabled = true;
+            pauseBtn.disabled = false; // Pause-Button aktivieren
+
+            await combSort();
+
+            isSorting = false;
+            resetBtn.disabled = false;
+            pauseBtn.disabled = true; // Nach Fertigstellung deaktivieren
+        }
+
+        resetArray();
+    </script>
+</body>
+</html>
